@@ -278,6 +278,19 @@ ifneq (,$(findstring CYGWIN,$(CONFIG_TARGET_OS)))
   LIBS	 += -lpthread -lpsapi -lws2_32 -lssp
   FIO_CFLAGS += -DPSAPI_VERSION=1 -Ios/windows/posix/include -Wno-format
 endif
+ifdef CONFIG_STORELIB
+  STORELIB_ARTIFACTS_DIR ?= /etc/pliops
+  storelib_SRCS = engines/storelib.c
+  storelib_LIBS = -lzlog -lstorelib
+  storelib_CFLAGS = -I$(STORELIB_ARTIFACTS_DIR)
+  LDFLAGS += -L$(STORELIB_ARTIFACTS_DIR) -Wl,-rpath=$(STORELIB_ARTIFACTS_DIR)
+  ENGINES += storelib
+endif
+
+ifdef CONFIG_LIGHTNING_KV
+  lightning_kv_nvme_SRCS = engines/lightning_kv_nvme.c
+  ENGINES += lightning_kv_nvme
+endif
 
 ifdef cmdprio_SRCS
   SOURCE += $(cmdprio_SRCS)

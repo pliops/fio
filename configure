@@ -196,6 +196,7 @@ libzbc=""
 dfs=""
 seed_buckets=""
 dynamic_engines="no"
+lightning_kv="no"
 prefix=/usr/local
 
 # parse options
@@ -286,6 +287,8 @@ for opt do
   ;;
   --disable-tls) tls_check="no"
   ;;
+  --enable-lightning-kv) lightning_kv="yes"
+  ;;
   --help)
     show_help="yes"
     ;;
@@ -338,6 +341,7 @@ if test "$show_help" = "yes" ; then
   echo "--enable-asan           Enable address sanitizer"
   echo "--seed-buckets=         Number of seed buckets for the refill-buffer"
   echo "--disable-tls		Disable __thread local storage"
+  echo "--enable-lightning-kv   Enable lightning kv engine"
   exit $exit_val
 fi
 
@@ -3384,6 +3388,13 @@ if test "$asan" = "yes"; then
   CFLAGS="$CFLAGS -fsanitize=address"
   LDFLAGS="$LDFLAGS -fsanitize=address"
 fi
+if test "$lightning_kv" = "yes"; then
+  output_sym "CONFIG_LIGHTNING_KV"
+  echo "LIGHTNING_KV_CFLAGS=$lightning_kv_cflags" >> $config_host_mak
+  echo "LIGHTNING_KV_LIBS=$lightning_kv_libs" >> $config_host_mak
+fi
+print_config "Lightning KV engine" "$lightning_kv"
+
 print_config "Lib-based ioengines dynamic" "$dynamic_engines"
 cat > $TMPC << EOF
 int main(int argc, char **argv)
