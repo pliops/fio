@@ -287,6 +287,9 @@ ifdef CONFIG_STORELIB
   ENGINES += storelib
 endif
 
+pliops_kv_nvme_SRCS = engines/pliops_kv_nvme.c
+ENGINES += pliops_kv_nvme
+
 ifdef cmdprio_SRCS
   SOURCE += $(cmdprio_SRCS)
 endif
