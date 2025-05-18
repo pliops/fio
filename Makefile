@@ -287,8 +287,10 @@ ifdef CONFIG_STORELIB
   ENGINES += storelib
 endif
 
-pliops_kv_nvme_SRCS = engines/pliops_kv_nvme.c
-ENGINES += pliops_kv_nvme
+ifdef CONFIG_LIGHTNING_KV
+  lightning_kv_nvme_SRCS = engines/lightning_kv_nvme.c
+  ENGINES += lightning_kv_nvme
+endif
 
 ifdef cmdprio_SRCS
   SOURCE += $(cmdprio_SRCS)

@@ -1,5 +1,5 @@
 /*
-* pliops_kv_nvme I/O engine
+* lightning_kv_nvme I/O engine
 *
 * IO engine using NVMe vendor-specific commands via ioctls
 * for KV storage acceleration.
@@ -19,17 +19,17 @@
 #include "../optgroup.h"
 
 /* NVMe vendor-specific command opcodes - these would be specific to your device */
-#define PLIOPS_NVME_OPCODE_GET 0x82  /* NVMe opcode for Pliops GET operation */
-#define PLIOPS_NVME_OPCODE_PUT 0x81  /* NVMe opcode for Pliops PUT operation */
+#define LIGHTNING_NVME_OPCODE_GET 0x82  /* NVMe opcode for Lightning GET operation */
+#define LIGHTNING_NVME_OPCODE_PUT 0x81  /* NVMe opcode for Lightning PUT operation */
 
 /* Engine options */
-struct pliops_kv_nvme_options {
+struct lightning_kv_nvme_options {
     void *pad;  /* not used */
 };
 
 /* Engine data */
-struct pliops_kv_nvme_data {
-    struct pliops_kv_nvme_options options;
+struct lightning_kv_nvme_data {
+    struct lightning_kv_nvme_options options;
 };
 
 /* Option list */
@@ -40,11 +40,11 @@ static struct fio_option options[] = {
 };
 
 /* Initialize the engine */
-static int fio_pliops_kv_nvme_init(struct thread_data *td)
+static int fio_lightning_kv_nvme_init(struct thread_data *td)
 {
-    struct pliops_kv_nvme_data *pkd;
+    struct lightning_kv_nvme_data *pkd;
 
-    pkd = calloc(1, sizeof(struct pliops_kv_nvme_data));
+    pkd = calloc(1, sizeof(struct lightning_kv_nvme_data));
     if (!pkd) {
         td_verror(td, errno, "calloc");
         return ENOMEM;
@@ -54,7 +54,7 @@ static int fio_pliops_kv_nvme_init(struct thread_data *td)
     return 0;
 }
 
-// static int fio_pliops_kv_nvme_identify(struct fio_file *f)
+// static int fio_lightning_kv_nvme_identify(struct fio_file *f)
 // {
 //     struct nvme_admin_cmd cmd;
 //     struct nvme_id_ctrl ctrl;
@@ -80,17 +80,17 @@ static int fio_pliops_kv_nvme_init(struct thread_data *td)
 //     return 0;
 // }
 
-static int fio_pliops_kv_nvme_open(struct thread_data *td, struct fio_file *f)
+static int fio_lightning_kv_nvme_open(struct thread_data *td, struct fio_file *f)
 {
     return generic_open_file(td, f);
 }
 
-static int fio_pliops_kv_nvme_close(struct thread_data *td, struct fio_file *f)
+static int fio_lightning_kv_nvme_close(struct thread_data *td, struct fio_file *f)
 {
     return generic_close_file(td, f);
 }
 
-static int fio_pliops_kv_send_nvme_command(int fd, uint8_t opcode, void *key, uint32_t key_len, void *value, uint32_t value_len)
+static int fio_lightning_kv_send_nvme_command(int fd, uint8_t opcode, void *key, uint32_t key_len, void *value, uint32_t value_len)
 {
     int ret;
 
@@ -114,7 +114,7 @@ static int fio_pliops_kv_send_nvme_command(int fd, uint8_t opcode, void *key, ui
     return ret;
 }
 
-static enum fio_q_status fio_pliops_kv_nvme_queue(struct thread_data *td, struct io_u *io_u)
+static enum fio_q_status fio_lightning_kv_nvme_queue(struct thread_data *td, struct io_u *io_u)
 {
     int ret;
 
@@ -123,16 +123,16 @@ static enum fio_q_status fio_pliops_kv_nvme_queue(struct thread_data *td, struct
     switch (io_u->ddir) {
     case DDIR_WRITE:
         /* Perform KV PUT operation */
-        ret = fio_pliops_kv_send_nvme_command(io_u->file->fd, PLIOPS_NVME_OPCODE_PUT, &io_u->offset,
+        ret = fio_lightning_kv_send_nvme_command(io_u->file->fd, LIGHTNING_NVME_OPCODE_PUT, &io_u->offset,
                                               sizeof(io_u->offset), io_u->xfer_buf, io_u->xfer_buflen);
         break;
     case DDIR_READ:
         /* Perform KV GET operation */
-        ret = fio_pliops_kv_send_nvme_command(io_u->file->fd, PLIOPS_NVME_OPCODE_GET, &io_u->offset,
+        ret = fio_lightning_kv_send_nvme_command(io_u->file->fd, LIGHTNING_NVME_OPCODE_GET, &io_u->offset,
                                               sizeof(io_u->offset), io_u->xfer_buf, io_u->xfer_buflen);
         break;
     default:
-        log_err("pliops_kv_nvme: unsupported I/O operation %d\n", io_u->ddir);
+        log_err("lightning_kv_nvme: unsupported I/O operation %d\n", io_u->ddir);
         io_u->error = EINVAL;
         return FIO_Q_COMPLETED;
     }
@@ -145,16 +145,16 @@ static enum fio_q_status fio_pliops_kv_nvme_queue(struct thread_data *td, struct
 }
 
 /* Clean up the engine */
-static void fio_pliops_kv_nvme_cleanup(struct thread_data *td)
+static void fio_lightning_kv_nvme_cleanup(struct thread_data *td)
 {
-    struct pliops_kv_nvme_data *pkd = td->io_ops_data;
+    struct lightning_kv_nvme_data *pkd = td->io_ops_data;
 
     if (pkd) {
         free(pkd);
         td->io_ops_data = NULL;
     }
 }
-static int fio_pliops_kv_nvme_get_file_size(struct thread_data *td, struct fio_file *f)
+static int fio_lightning_kv_nvme_get_file_size(struct thread_data *td, struct fio_file *f)
 {
     if (fio_file_size_known(f)) {
         return 0;
@@ -165,35 +165,35 @@ static int fio_pliops_kv_nvme_get_file_size(struct thread_data *td, struct fio_f
     fio_file_set_size_known(f);
 
     // TODO: support max object size
-    // fio_pliops_kv_nvme_identify(f);
+    // fio_lightning_kv_nvme_identify(f);
 
     return 0;
 }
 
 
 /* FIO engine structure */
-static struct ioengine_ops ioengine_pliops_kv_nvme = {
-    .name           = "pliops_kv_nvme",
+static struct ioengine_ops ioengine_lightning_kv_nvme = {
+    .name           = "lightning_kv_nvme",
     .version        = FIO_IOOPS_VERSION,
-    .init           = fio_pliops_kv_nvme_init,
-    .queue          = fio_pliops_kv_nvme_queue,
-    .open_file      = fio_pliops_kv_nvme_open,
-    .close_file     = fio_pliops_kv_nvme_close,
-    .cleanup        = fio_pliops_kv_nvme_cleanup,
-    .get_file_size  = fio_pliops_kv_nvme_get_file_size,
+    .init           = fio_lightning_kv_nvme_init,
+    .queue          = fio_lightning_kv_nvme_queue,
+    .open_file      = fio_lightning_kv_nvme_open,
+    .close_file     = fio_lightning_kv_nvme_close,
+    .cleanup        = fio_lightning_kv_nvme_cleanup,
+    .get_file_size  = fio_lightning_kv_nvme_get_file_size,
     .options        = options,
-    .option_struct_size = sizeof(struct pliops_kv_nvme_options),
+    .option_struct_size = sizeof(struct lightning_kv_nvme_options),
     .flags          = FIO_SYNCIO | FIO_DISKLESSIO,
 };
 
 /* Register this engine with FIO */
-static void fio_init fio_pliops_kv_nvme_register(void)
+static void fio_init fio_lightning_kv_nvme_register(void)
 {
-    register_ioengine(&ioengine_pliops_kv_nvme);
+    register_ioengine(&ioengine_lightning_kv_nvme);
 }
 
 /* Unregister the engine when unloading */
-static void fio_exit fio_pliops_kv_nvme_unregister(void)
+static void fio_exit fio_lightning_kv_nvme_unregister(void)
 {
-    unregister_ioengine(&ioengine_pliops_kv_nvme);
+    unregister_ioengine(&ioengine_lightning_kv_nvme);
 }
