@@ -270,7 +270,7 @@ static struct ioengine_ops ioengine_storelib = {
 	.get_file_size       = storelib_get_file_size,
 	.invalidate          = storelib_invalidate,
 	.queue               = storelib_queue,
-	.flags               = FIO_SYNCIO,
+	.flags               = FIO_SYNCIO | FIO_DISKLESSIO,
 	.options             = options,
 	.option_struct_size  = sizeof(struct storelib_options),
 };
