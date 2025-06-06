@@ -87,6 +87,10 @@ static PLIOPS_STATUS_et storelib_get(PLIOPS_DB_t db, struct io_u *io_u, bool ski
 
 	status = PLIOPS_Get(db, &io_u->offset, sizeof(io_u->offset), io_u->xfer_buf, io_u->xfer_buflen, &actualSize);
 	if (status != PLIOPS_STATUS_OK) {
+		if (status == PLIOPS_STATUS_NON_EXIST) {
+			return PLIOPS_STATUS_OK;
+		}
+
 		log_err("storelib: Get failed with %d\n", status);
 		return status;
 	}
