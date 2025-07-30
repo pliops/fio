@@ -341,7 +341,7 @@ if test "$show_help" = "yes" ; then
   echo "--enable-asan           Enable address sanitizer"
   echo "--seed-buckets=         Number of seed buckets for the refill-buffer"
   echo "--disable-tls		Disable __thread local storage"
-  echo "--enable_lightning_kv   Enable lightning kv engine"
+  echo "--enable-lightning-kv   Enable lightning kv engine"
   exit $exit_val
 fi
 
