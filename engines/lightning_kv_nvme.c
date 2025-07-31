@@ -18,9 +18,17 @@
 #include "../fio.h"
 #include "../optgroup.h"
 
-/* NVMe vendor-specific command opcodes - these would be specific to your device */
-#define LIGHTNING_NVME_OPCODE_GET 0x82  /* NVMe opcode for Lightning GET operation */
-#define LIGHTNING_NVME_OPCODE_PUT 0x81  /* NVMe opcode for Lightning PUT operation */
+static const uint32_t g_lightning_kv_nvme_database_identifier = 0;
+
+enum LIGHTNING_NVME_OPCODE {
+    LIGHTNING_NVME_OPCODE_PUT       = 0x81,
+    LIGHTNING_NVME_OPCODE_GET       = 0x82,
+    LIGHTNING_NVME_OPCODE_EXIST     = 0x84,
+    LIGHTNING_NVME_OPCODE_DELETE    = 0x88,
+    LIGHTNING_NVME_OPCODE_OPEN_DB   = 0xC4,
+    LIGHTNING_NVME_OPCODE_CLOSE_DB  = 0xC8,
+    LIGHTNING_NVME_OPCODE_DELETE_DB = 0xCC,
+};
 
 /* Engine options */
 struct lightning_kv_nvme_options {
@@ -80,38 +88,82 @@ static int fio_lightning_kv_nvme_init(struct thread_data *td)
 //     return 0;
 // }
 
-static int fio_lightning_kv_nvme_open(struct thread_data *td, struct fio_file *f)
-{
-    return generic_open_file(td, f);
-}
-
-static int fio_lightning_kv_nvme_close(struct thread_data *td, struct fio_file *f)
-{
-    return generic_close_file(td, f);
-}
-
-static int fio_lightning_kv_send_nvme_command(int fd, uint8_t opcode, void *key, uint32_t key_len, void *value, uint32_t value_len)
+static int fio_lightning_kv_send_nvme_command(int fd, uint8_t opcode, const void *data, uint32_t data_len, void *value, uint32_t value_len)
 {
     int ret;
-
+    uint64_t data_uint64 = 0;
     struct nvme_passthru_cmd64 cmd = {
         .opcode = opcode,
         .nsid = 1,  // Using default namespace 1
         .addr = (uint64_t)value,
         .data_len = value_len,
     };
-    memcpy(&cmd.cdw12, key, key_len);
+
+    switch (data_len) {
+    case (sizeof(uint32_t)):
+        data_uint64 = *(uint32_t*)data;
+        break;
+    case (sizeof(uint64_t)):
+        data_uint64 = *(uint64_t*)data;
+        break;
+    default:
+        log_err("Unsupported command data len %u\n", data_len);
+        return EINVAL;
+    }
+
+    memcpy(&cmd.cdw12, data, data_len);
 
     ret = ioctl(fd, NVME_IOCTL_IO64_CMD, &cmd);
 
     // Check the NVMe status code
     if ((cmd.result) || (ret != 0)) {
-        log_err("NVMe cmd failed: ret=%d, opcode=0x%x, key=0x%" PRIx64 ", result=0x%llx, errno=%d\n",
-                ret, opcode, *(uint64_t *)key, cmd.result, errno);
+        log_err("NVMe cmd failed: ret=%d, opcode=0x%x, data=0x%" PRIx64 ", result=0x%llx, errno=%d\n",
+                ret, opcode, data_uint64, cmd.result, errno);
         return EIO;
     }
 
     return ret;
+}
+
+static int fio_lightning_kv_nvme_open(struct thread_data *td, struct fio_file *f)
+{
+    int ret, ret_close_file;
+
+    ret = generic_open_file(td, f);
+    if (ret != 0) {
+        return ret;
+    }
+
+    ret = fio_lightning_kv_send_nvme_command(f->fd, LIGHTNING_NVME_OPCODE_OPEN_DB,
+                                             &g_lightning_kv_nvme_database_identifier, sizeof(g_lightning_kv_nvme_database_identifier),
+                                             NULL, 0);
+    if (ret) {
+        log_err("Failed to open DB %u: %d\n", g_lightning_kv_nvme_database_identifier, ret);
+
+        /* FIO warns if we do not use the return value of generic_close_file() */
+        ret_close_file = generic_close_file(td, f);
+        if (ret_close_file) {
+            log_err("generic_close_file failed with %d", ret_close_file);
+        }
+    }
+
+    return ret;
+}
+
+static int fio_lightning_kv_nvme_close(struct thread_data *td, struct fio_file *f)
+{
+    int ret_close_db, ret_close;
+
+    ret_close_db = fio_lightning_kv_send_nvme_command(f->fd, LIGHTNING_NVME_OPCODE_CLOSE_DB,
+                                             &g_lightning_kv_nvme_database_identifier, sizeof(g_lightning_kv_nvme_database_identifier),
+                                             NULL, 0);
+    if (ret_close_db) {
+        log_err("Failed to close DB %u: %d\n", g_lightning_kv_nvme_database_identifier, ret_close_db);
+    }
+
+    ret_close = generic_close_file(td, f);
+
+    return ret_close_db ? ret_close_db : ret_close;
 }
 
 static enum fio_q_status fio_lightning_kv_nvme_queue(struct thread_data *td, struct io_u *io_u)
