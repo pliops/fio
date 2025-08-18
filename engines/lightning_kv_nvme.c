@@ -206,22 +206,6 @@ static void fio_lightning_kv_nvme_cleanup(struct thread_data *td)
         td->io_ops_data = NULL;
     }
 }
-static int fio_lightning_kv_nvme_get_file_size(struct thread_data *td, struct fio_file *f)
-{
-    if (fio_file_size_known(f)) {
-        return 0;
-    }
-
-    // Set the device size as max as possible
-    f->real_file_size = UINT64_MAX;
-    fio_file_set_size_known(f);
-
-    // TODO: support max object size
-    // fio_lightning_kv_nvme_identify(f);
-
-    return 0;
-}
-
 
 /* FIO engine structure */
 static struct ioengine_ops ioengine_lightning_kv_nvme = {
@@ -232,7 +216,7 @@ static struct ioengine_ops ioengine_lightning_kv_nvme = {
     .open_file      = fio_lightning_kv_nvme_open,
     .close_file     = fio_lightning_kv_nvme_close,
     .cleanup        = fio_lightning_kv_nvme_cleanup,
-    .get_file_size  = fio_lightning_kv_nvme_get_file_size,
+    .get_file_size  = generic_get_file_size,
     .options        = options,
     .option_struct_size = sizeof(struct lightning_kv_nvme_options),
     .flags          = FIO_SYNCIO | FIO_DISKLESSIO,
