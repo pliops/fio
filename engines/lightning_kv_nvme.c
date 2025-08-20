@@ -88,7 +88,7 @@ static int fio_lightning_kv_nvme_init(struct thread_data *td)
 //     return 0;
 // }
 
-static int fio_lightning_kv_send_nvme_command(int fd, uint8_t opcode, const void *data, uint32_t data_len, void *value, uint32_t value_len)
+static int fio_lightning_kv_send_nvme_command(int fd, uint8_t opcode, const void *data, uint32_t data_len, void *value, uint32_t value_len, unsigned long ioctl_cmd)
 {
     int ret;
     uint64_t data_uint64 = 0;
@@ -113,7 +113,7 @@ static int fio_lightning_kv_send_nvme_command(int fd, uint8_t opcode, const void
 
     memcpy(&cmd.cdw12, data, data_len);
 
-    ret = ioctl(fd, NVME_IOCTL_IO64_CMD, &cmd);
+    ret = ioctl(fd, ioctl_cmd, &cmd);
 
     // Check the NVMe status code
     if ((cmd.result) || (ret != 0)) {
@@ -136,7 +136,7 @@ static int fio_lightning_kv_nvme_open(struct thread_data *td, struct fio_file *f
 
     ret = fio_lightning_kv_send_nvme_command(f->fd, LIGHTNING_NVME_OPCODE_OPEN_DB,
                                              &g_lightning_kv_nvme_database_identifier, sizeof(g_lightning_kv_nvme_database_identifier),
-                                             NULL, 0);
+                                             NULL, 0, NVME_IOCTL_ADMIN_CMD);
     if (ret) {
         log_err("Failed to open DB %u: %d\n", g_lightning_kv_nvme_database_identifier, ret);
 
@@ -156,7 +156,7 @@ static int fio_lightning_kv_nvme_close(struct thread_data *td, struct fio_file *
 
     ret_close_db = fio_lightning_kv_send_nvme_command(f->fd, LIGHTNING_NVME_OPCODE_CLOSE_DB,
                                              &g_lightning_kv_nvme_database_identifier, sizeof(g_lightning_kv_nvme_database_identifier),
-                                             NULL, 0);
+                                             NULL, 0, NVME_IOCTL_ADMIN_CMD);
     if (ret_close_db) {
         log_err("Failed to close DB %u: %d\n", g_lightning_kv_nvme_database_identifier, ret_close_db);
     }
@@ -176,12 +176,12 @@ static enum fio_q_status fio_lightning_kv_nvme_queue(struct thread_data *td, str
     case DDIR_WRITE:
         /* Perform KV PUT operation */
         ret = fio_lightning_kv_send_nvme_command(io_u->file->fd, LIGHTNING_NVME_OPCODE_PUT, &io_u->offset,
-                                              sizeof(io_u->offset), io_u->xfer_buf, io_u->xfer_buflen);
+                                              sizeof(io_u->offset), io_u->xfer_buf, io_u->xfer_buflen, NVME_IOCTL_IO64_CMD);
         break;
     case DDIR_READ:
         /* Perform KV GET operation */
         ret = fio_lightning_kv_send_nvme_command(io_u->file->fd, LIGHTNING_NVME_OPCODE_GET, &io_u->offset,
-                                              sizeof(io_u->offset), io_u->xfer_buf, io_u->xfer_buflen);
+                                              sizeof(io_u->offset), io_u->xfer_buf, io_u->xfer_buflen, NVME_IOCTL_IO64_CMD);
         break;
     default:
         log_err("lightning_kv_nvme: unsupported I/O operation %d\n", io_u->ddir);
