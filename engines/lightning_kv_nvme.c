@@ -183,6 +183,11 @@ static enum fio_q_status fio_lightning_kv_nvme_queue(struct thread_data *td, str
         ret = fio_lightning_kv_send_nvme_command(io_u->file->fd, LIGHTNING_NVME_OPCODE_GET, &io_u->offset,
                                               sizeof(io_u->offset), io_u->xfer_buf, io_u->xfer_buflen, NVME_IOCTL_IO64_CMD);
         break;
+    case DDIR_TRIM:
+        /* Perform KV DELETE operation */
+        ret = fio_lightning_kv_send_nvme_command(io_u->file->fd, LIGHTNING_NVME_OPCODE_DELETE, &io_u->offset,
+                                                sizeof(io_u->offset), NULL, 0, NVME_IOCTL_IO64_CMD);
+        break;
     default:
         log_err("lightning_kv_nvme: unsupported I/O operation %d\n", io_u->ddir);
         io_u->error = EINVAL;
