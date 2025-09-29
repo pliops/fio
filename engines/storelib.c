@@ -27,6 +27,7 @@ struct storelib_options {
 	bool error_if_exists;
 	int stream_id;
 	bool skip_size_verification;
+	bool use_offset_as_key;
 };
 
 static struct fio_option options[] = {
@@ -76,15 +77,24 @@ static struct fio_option options[] = {
 		.category = FIO_OPT_C_IO,
 	},
 	{
+		.name = "use_offset_as_key",
+		.lname = "Use offset as key",
+		.help = "Use the IO offset as the object key",
+		.type = FIO_OPT_BOOL,
+		.off1 = offsetof(struct storelib_options, use_offset_as_key),
+		.def = "0",
+		.category = FIO_OPT_C_IO,
+	},
+	{
 		.name = NULL,
 	},
 };
 
-static PLIOPS_STATUS_et storelib_get(PLIOPS_DB_t db, struct io_u *io_u, bool skip_size_verification)
+static PLIOPS_STATUS_et storelib_get(PLIOPS_DB_t db, struct io_u *io_u, bool skip_size_verification, bool use_offset_as_key)
 {
 	PLIOPS_STATUS_et status;
 	unsigned int actualSize = 0;
-	unsigned long long key = io_u->offset / io_u->xfer_buflen;
+	unsigned long long key = use_offset_as_key ? io_u->offset : io_u->offset / io_u->xfer_buflen;
 
 	status = PLIOPS_Get(db, &key, sizeof(io_u->offset), io_u->xfer_buf, io_u->xfer_buflen, &actualSize);
 	if (status != PLIOPS_STATUS_OK) {
@@ -104,10 +114,10 @@ static PLIOPS_STATUS_et storelib_get(PLIOPS_DB_t db, struct io_u *io_u, bool ski
 	return PLIOPS_STATUS_OK;
 }
 
-static PLIOPS_STATUS_et storelib_put(PLIOPS_DB_t db, struct io_u *io_u)
+static PLIOPS_STATUS_et storelib_put(PLIOPS_DB_t db, struct io_u *io_u, bool use_offset_as_key)
 {
 	PLIOPS_STATUS_et status;
-	unsigned long long key = io_u->offset / io_u->xfer_buflen;
+	unsigned long long key = use_offset_as_key ? io_u->offset : io_u->offset / io_u->xfer_buflen;
 
 	status = PLIOPS_Put(db, &key, sizeof(io_u->offset), io_u->xfer_buf, io_u->xfer_buflen, 0);
 	if (status != PLIOPS_STATUS_OK) {
@@ -118,10 +128,10 @@ static PLIOPS_STATUS_et storelib_put(PLIOPS_DB_t db, struct io_u *io_u)
 	return status;
 }
 
-static PLIOPS_STATUS_et storelib_delete(PLIOPS_DB_t db, struct io_u *io_u)
+static PLIOPS_STATUS_et storelib_delete(PLIOPS_DB_t db, struct io_u *io_u, bool use_offset_as_key)
 {
 	PLIOPS_STATUS_et status;
-	unsigned long long key = io_u->offset / io_u->xfer_buflen;
+	unsigned long long key = use_offset_as_key ? io_u->offset : io_u->offset / io_u->xfer_buflen;
 
 	status = PLIOPS_Delete(db, &key, sizeof(io_u->offset), 0);
 	if (status != PLIOPS_STATUS_OK) {
@@ -149,13 +159,13 @@ static enum fio_q_status storelib_queue(struct thread_data *td, struct io_u *io_
 
 	switch (io_u->ddir) {
 	case DDIR_READ:
-		status = storelib_get(io_u->file->fd, io_u, eo->skip_size_verification);
+		status = storelib_get(io_u->file->fd, io_u, eo->skip_size_verification, eo->use_offset_as_key);
 		break;
 	case DDIR_WRITE:
-		status = storelib_put(io_u->file->fd, io_u);
+		status = storelib_put(io_u->file->fd, io_u, eo->use_offset_as_key);
 		break;
 	case DDIR_TRIM:
-		status = storelib_delete(io_u->file->fd, io_u);
+		status = storelib_delete(io_u->file->fd, io_u, eo->use_offset_as_key);
 		break;
 	case DDIR_SYNC:
 	case DDIR_DATASYNC:
