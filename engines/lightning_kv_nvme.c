@@ -87,6 +87,16 @@ static int fio_lightning_kv_nvme_init(struct thread_data *td)
 
 //     return 0;
 // }
+static inline void parse_nvme_return_code(int ret, int* sc, int* sct) {
+    int status = ret & 0xffff;  // lower 16 bits
+    if (sc) {
+        *sc  = status & 0xff;    // status code
+    }
+
+    if (sct) {
+        *sct = (status >> 8) & 0x7; // status code type (3 bits)
+    }
+}
 
 static int fio_lightning_kv_send_nvme_command(int fd, uint8_t opcode, const void *data, uint32_t data_len, void *value, uint32_t value_len, unsigned long ioctl_cmd)
 {
@@ -169,7 +179,7 @@ static int fio_lightning_kv_nvme_close(struct thread_data *td, struct fio_file *
 static enum fio_q_status fio_lightning_kv_nvme_queue(struct thread_data *td, struct io_u *io_u)
 {
     int ret;
-
+    int sc, sct;
     fio_ro_check(td, io_u);
 
     switch (io_u->ddir) {
@@ -194,7 +204,9 @@ static enum fio_q_status fio_lightning_kv_nvme_queue(struct thread_data *td, str
         return FIO_Q_COMPLETED;
     }
 
-    if (ret) {
+    parse_nvme_return_code(ret, &sc, &sct);
+    if (sc) {
+        log_err("lightning_kv_nvme: received error sc %d\n", sc);
         io_u->error = EIO;
     }
 
